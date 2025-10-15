@@ -342,6 +342,44 @@ const accumulateMonthlyPartnerBucket = (bucket, payout, type) => {
   return bucket;
 };
 
+const sanitisePartnerRecord = (record, fallbackId = null) => {
+  if (!record || typeof record !== 'object') {
+    return fallbackId != null ? { id: fallbackId } : null;
+  }
+
+  const id = ensurePartnerId(record) ?? fallbackId ?? null;
+  const name = record.name ?? record.partnerName ?? null;
+  const shortName = record.shortName ?? record.short_name ?? null;
+  const region = record.region ?? record.partnerRegion ?? null;
+  const status = record.status ?? record.partnerStatus ?? null;
+
+  return {
+    id,
+    name,
+    shortName,
+    region,
+    status,
+  };
+};
+
+const sanitiseAffiliateRecord = (record) => {
+  if (!record || typeof record !== 'object') {
+    return null;
+  }
+
+  const id = ensureAffiliateId(record);
+  const name = record.name ?? record.affiliateName ?? null;
+  const region = record.region ?? record.affiliateRegion ?? null;
+  const status = record.status ?? record.affiliateStatus ?? null;
+
+  return {
+    id,
+    name,
+    region,
+    status,
+  };
+};
+
 export function summaryForPartner(partnerIdInput, db = {}) {
   const partnerId = normaliseId(partnerIdInput);
   const partner = ensureArray(db?.partners).find((item) => {
@@ -403,7 +441,7 @@ export function summaryForPartner(partnerIdInput, db = {}) {
   });
 
   return {
-    partner: partner ?? { id: partnerId },
+    partner: sanitisePartnerRecord(partner, partnerId),
     totals: {
       users: { ...totals.users },
       payouts: {
@@ -429,7 +467,9 @@ export function summaryForPartner(partnerIdInput, db = {}) {
         overall: clonePayoutTotals(bucket.payouts.overall),
       },
     })),
-    affiliates,
+    affiliates: affiliates
+      .map(sanitiseAffiliateRecord)
+      .filter((affiliate) => affiliate && affiliate.id != null),
   };
 }
 
