@@ -1,0 +1,51 @@
+# -----------------------------------
+# Node / Vite base
+# -----------------------------------
+node_modules/
+dist/
+.vite/
+.cache/
+*.log
+
+# -----------------------------------
+# Sistema / Editor
+# -----------------------------------
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# -----------------------------------
+# Dependencias / Compilados
+# -----------------------------------
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# -----------------------------------
+# Archivos temporales / build
+# -----------------------------------
+.env
+.env.*
+coverage/
+temp/
+tmp/
+*.tmp
+*.bak
+*.old
+
+# -----------------------------------
+# Sistema operativo
+# -----------------------------------
+ehthumbs.db
+Icon?
+desktop.ini
+
+# -----------------------------------
+# Proyecto específico
+# -----------------------------------
+referral-system-web/dist/
+referral-system-web/.vite/
+referral-system-web/node_modules/
