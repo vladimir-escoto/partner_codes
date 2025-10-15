@@ -81,8 +81,9 @@ const buildTableHeader = (columns) => {
   return thead;
 };
 
-const buildTableRow = (code, onEdit) => {
+const buildTableRow = (code, { onEdit, onDetail } = {}) => {
   const row = document.createElement('tr');
+  row.dataset.codeId = code.id ?? code.code ?? '';
   const cells = [
     code.id ?? '—',
     code.code ?? '—',
@@ -104,7 +105,10 @@ const buildTableRow = (code, onEdit) => {
     button.type = 'button';
     button.textContent = 'Editar';
     button.className = 'button button--secondary';
-    button.addEventListener('click', () => onEdit(code.raw));
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      onEdit?.(code.raw);
+    });
     actions.appendChild(button);
   } else {
     const hint = document.createElement('span');
@@ -113,10 +117,15 @@ const buildTableRow = (code, onEdit) => {
     actions.appendChild(hint);
   }
   row.appendChild(actions);
+
+  if (typeof onDetail === 'function') {
+    row.addEventListener('click', () => onDetail(code));
+    row.classList.add('is-clickable');
+  }
   return row;
 };
 
-const renderCodesTable = (codes, onEdit) => {
+const renderCodesTable = (codes, { onEdit, onDetail } = {}) => {
   const table = document.createElement('table');
   table.appendChild(
     buildTableHeader(['ID', 'Código', 'Rol', 'Owner', 'Status', 'Usos', 'Región', 'Acciones']),
@@ -130,9 +139,16 @@ const renderCodesTable = (codes, onEdit) => {
     row.appendChild(cell);
     tbody.appendChild(row);
   } else {
-    codes.map((code) => normaliseCodeRecord(code)).forEach((code) => {
-      tbody.appendChild(buildTableRow(code, onEdit));
-    });
+    codes
+      .map((code) => normaliseCodeRecord(code))
+      .forEach((code) => {
+        tbody.appendChild(
+          buildTableRow(code, {
+            onEdit,
+            onDetail,
+          }),
+        );
+      });
   }
   table.appendChild(tbody);
   return table;
@@ -280,7 +296,7 @@ const openEditModal = (code, refresh) => {
   openModal(modal.id);
 };
 
-const buildCreateForm = (existingCodes, refresh) => {
+const buildCreateForm = (existingCodes, { onSuccess, onCancel } = {}) => {
   const form = document.createElement('form');
   form.className = 'form-grid';
 
@@ -377,6 +393,26 @@ const buildCreateForm = (existingCodes, refresh) => {
   helper.textContent = 'Para afiliados es obligatorio especificar el partner padre.';
   form.appendChild(helper);
 
+  const actionsWrapper = document.createElement('div');
+  actionsWrapper.className = 'form-actions';
+
+  const cancelButton = document.createElement('button');
+  cancelButton.type = 'button';
+  cancelButton.textContent = 'Cancelar';
+  cancelButton.className = 'button button--secondary';
+  cancelButton.addEventListener('click', () => {
+    onCancel?.();
+  });
+  actionsWrapper.appendChild(cancelButton);
+
+  const submitButton = document.createElement('button');
+  submitButton.type = 'submit';
+  submitButton.textContent = 'Crear código';
+  submitButton.className = 'button';
+  actionsWrapper.appendChild(submitButton);
+
+  form.appendChild(actionsWrapper);
+
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     const payload = serializeForm(form);
@@ -425,7 +461,8 @@ const buildCreateForm = (existingCodes, refresh) => {
     persistCode(record);
     showToast(`Código ${record.code} creado exitosamente`, { type: 'success' });
     form.reset();
-    refresh();
+    roleSelect.dispatchEvent(new Event('change'));
+    onSuccess?.(record);
   });
 
   roleSelect.addEventListener('change', () => {
@@ -444,6 +481,81 @@ const buildCreateForm = (existingCodes, refresh) => {
   return form;
 };
 
+const openCodeDetailModal = (code) => {
+  const modalId = `code-detail-${code.id ?? code.code}`;
+  destroyModal(modalId);
+
+  const details = document.createElement('dl');
+  details.className = 'code-detail';
+
+  const entries = [
+    ['Código', code.code ?? '—'],
+    ['Rol', code.role === 'affiliate' ? 'Afiliado' : 'Partner'],
+    ['Owner ID', code.owner_user_id || '—'],
+    ['Nombre', code.owner_name || '—'],
+    ['Email', code.email || '—'],
+    ['Teléfono', code.phone || '—'],
+    ['Región', code.region || '—'],
+    ['Partner padre', code.parent_partner_id || '—'],
+    ['Status', code.status || '—'],
+    ['Usos', code.max_uses ? `${code.uses ?? 0}/${code.max_uses}` : `${code.uses ?? 0}`],
+    ['Creado', code.created_at ? new Date(code.created_at).toLocaleString() : '—'],
+    ['Actualizado', code.updated_at ? new Date(code.updated_at).toLocaleString() : '—'],
+  ];
+
+  entries.forEach(([label, value]) => {
+    const dt = document.createElement('dt');
+    dt.textContent = label;
+    const dd = document.createElement('dd');
+    dd.textContent = value;
+    details.appendChild(dt);
+    details.appendChild(dd);
+  });
+
+  const modal = createModal({
+    id: modalId,
+    title: `Detalle código ${code.code ?? code.id ?? ''}`,
+    content: details,
+    actions: [
+      {
+        label: 'Cerrar',
+        variant: 'secondary',
+        onClick: () => {
+          closeModal(modalId);
+          destroyModal(modalId);
+        },
+      },
+    ],
+  });
+
+  openModal(modal.id);
+};
+
+const openCreateModal = (existingCodes, refresh) => {
+  const modalId = 'create-code-modal';
+  destroyModal(modalId);
+
+  const form = buildCreateForm(existingCodes, {
+    onSuccess: () => {
+      closeModal(modalId);
+      destroyModal(modalId);
+      refresh?.();
+    },
+    onCancel: () => {
+      closeModal(modalId);
+      destroyModal(modalId);
+    },
+  });
+
+  const modal = createModal({
+    id: modalId,
+    title: 'Crear nuevo código',
+    content: form,
+  });
+
+  openModal(modal.id);
+};
+
 export function renderAdminCodes(container, { refresh }) {
   const db = getDB();
   const codes = Array.isArray(db.codes) ? db.codes : [];
@@ -455,10 +567,23 @@ export function renderAdminCodes(container, { refresh }) {
   container.appendChild(intro);
 
   const formCard = createCard('Nuevo código', 'Complete los datos para generar un nuevo código.');
-  formCard.appendChild(buildCreateForm(codes, refresh));
+  const createButton = document.createElement('button');
+  createButton.type = 'button';
+  createButton.textContent = 'Crear código';
+  createButton.className = 'button';
+  createButton.addEventListener('click', () => {
+    const currentCodes = Array.isArray(getDB().codes) ? getDB().codes : codes;
+    openCreateModal(currentCodes, refresh);
+  });
+  formCard.appendChild(createButton);
   container.appendChild(formCard);
 
   const tableCard = createCard('Listado de códigos');
-  tableCard.appendChild(renderCodesTable(codes, (code) => openEditModal(code, refresh)));
+  tableCard.appendChild(
+    renderCodesTable(codes, {
+      onEdit: (code) => openEditModal(code, refresh),
+      onDetail: (code) => openCodeDetailModal(code),
+    }),
+  );
   container.appendChild(tableCard);
 }

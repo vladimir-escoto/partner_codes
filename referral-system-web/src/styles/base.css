@@ -193,6 +193,13 @@ body {
   align-items: flex-end;
 }
 
+.form-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+}
+
 .form-control {
   background: var(--color-surface-alt);
   border: 1px solid var(--color-border);
@@ -247,6 +254,31 @@ body {
   padding: var(--space-sm) var(--space-md);
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
+}
+
+.code-detail {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-xs) var(--space-md);
+  margin-top: var(--space-sm);
+}
+
+.code-detail dt {
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.code-detail dd {
+  margin: 0;
+  color: var(--color-text);
+}
+
+.is-clickable {
+  cursor: pointer;
+}
+
+.is-clickable:hover {
+  background: rgba(148, 163, 184, 0.1);
 }
 
 .summary-list span {

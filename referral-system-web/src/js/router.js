@@ -116,10 +116,13 @@ export const navigate = (role, view) => {
   }
 
   contentContainer.innerHTML = '';
+  const refresh = () => navigate(normalizedRole, targetView);
+
   entry.render(contentContainer, {
     role: normalizedRole,
     view: targetView,
     navigate,
+    refresh,
   });
 
   currentRoute = { role: normalizedRole, view: targetView };
