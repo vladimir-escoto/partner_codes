@@ -1,0 +1,29 @@
+{
+  "settings": {
+    "version": 1,
+    "seededAt": null
+  },
+  "apps": [
+    {
+      "id": "pt-console",
+      "name": "Partner Console"
+    },
+    {
+      "id": "affiliate-portal",
+      "name": "Affiliate Portal"
+    },
+    {
+      "id": "customer-app",
+      "name": "Customer App"
+    }
+  ],
+  "partners": [],
+  "affiliates": [],
+  "users": [],
+  "codes": [],
+  "transactions": [],
+  "counters": {
+    "lastUserId": 0,
+    "lastCodeId": 0
+  }
+}
