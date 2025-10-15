@@ -1,6 +1,12 @@
 import { ensureSeed } from '../seed.js';
 import { loadDB } from './db.js';
-import { createSidebar, registerSidebarRole } from '../components/sidebar.js';
+import { createSidebar } from '../components/sidebar.js';
+import {
+  registerRoutes,
+  navigate,
+  setContentContainer,
+  getAvailableViews,
+} from './router.js';
 import { renderAdminDashboard } from './views/admin/admin.dashboard.js';
 import { renderAdminCodes } from './views/admin/admin.codes.js';
 import { renderAdminReports } from './views/admin/admin.reports.js';
@@ -13,126 +19,42 @@ import { renderPartnerDashboard } from './views/partner/partner.dashboard.js';
 import { renderPartnerMyCode } from './views/partner/partner.myCode.js';
 import { renderPartnerPayments } from './views/partner/partner.payments.js';
 
-ensureSeed();
-loadDB();
-
-const ROLE_CONFIG = {
-  admin: {
-    title: 'Administración',
-    routes: [
-      { id: 'admin-dashboard', label: 'Dashboard', render: renderAdminDashboard },
-      { id: 'admin-codes', label: 'Códigos', render: renderAdminCodes },
-      { id: 'admin-reports', label: 'Reportes', render: renderAdminReports },
-      { id: 'admin-payments', label: 'Pagos', render: renderAdminPayments },
-    ],
-  },
-  ejecutivo: {
-    title: 'Ejecutivo',
-    routes: [
-      { id: 'executive-dashboard', label: 'Dashboard', render: renderExecutiveDashboard },
-      { id: 'executive-payments', label: 'Pagos', render: renderExecutivePayments },
-    ],
-  },
-  finanzas: {
-    title: 'Finanzas',
-    routes: [
-      { id: 'finance-payments', label: 'Pagos', render: renderFinancePayments },
-      { id: 'finance-history', label: 'Historial', render: renderFinanceHistory },
-    ],
-  },
-  partner: {
-    title: 'Partner',
-    routes: [
-      { id: 'partner-dashboard', label: 'Dashboard', render: renderPartnerDashboard },
-      { id: 'partner-my-code', label: 'Mi código & afiliados', render: renderPartnerMyCode },
-      { id: 'partner-payments', label: 'Pagos', render: renderPartnerPayments },
-    ],
-  },
+const ROUTE_DEFINITIONS = {
+  admin: [
+    { view: 'dashboard', label: 'Dashboard', render: renderAdminDashboard },
+    { view: 'codes', label: 'Códigos', render: renderAdminCodes },
+    { view: 'reports', label: 'Reportes', render: renderAdminReports },
+    { view: 'payments', label: 'Pagos', render: renderAdminPayments },
+  ],
+  ejecutivo: [
+    { view: 'dashboard', label: 'Dashboard', render: renderExecutiveDashboard },
+    { view: 'payments', label: 'Pagos', render: renderExecutivePayments },
+  ],
+  finanzas: [
+    { view: 'payments', label: 'Pagos', render: renderFinancePayments },
+    { view: 'history', label: 'Historial', render: renderFinanceHistory },
+  ],
+  partner: [
+    { view: 'dashboard', label: 'Dashboard', render: renderPartnerDashboard },
+    { view: 'my-code', label: 'Mi código & afiliados', render: renderPartnerMyCode },
+    { view: 'payments', label: 'Pagos', render: renderPartnerPayments },
+  ],
 };
 
-const state = {
-  role: 'admin',
-  routeId: 'admin-dashboard',
-  sidebarLinks: [],
-  viewContainer: null,
-};
+const DEFAULT_ROLE = 'admin';
+const DEFAULT_VIEW = 'dashboard';
 
-function decorateMenuLinks(sidebar, roleConfig) {
-  state.sidebarLinks = [];
-  const anchors = sidebar.querySelectorAll('a');
-  anchors.forEach((anchor, index) => {
-    const route = roleConfig.routes[index];
-    if (!route) return;
-    anchor.dataset.routeId = route.id;
-    anchor.addEventListener('click', (event) => {
-      event.preventDefault();
-      navigate(state.role, route.id);
-    });
-    state.sidebarLinks.push({ id: route.id, anchor });
-  });
-  updateActiveLink();
-}
+const boot = () => {
+  ensureSeed();
+  loadDB();
 
-function updateActiveLink() {
-  state.sidebarLinks.forEach(({ id, anchor }) => {
-    if (!anchor) return;
-    if (id === state.routeId) {
-      anchor.classList.add('is-active');
-    } else {
-      anchor.classList.remove('is-active');
-    }
-  });
-}
-
-function renderView(role, routeId) {
-  const roleConfig = ROLE_CONFIG[role];
-  if (!roleConfig) return;
-  const route = roleConfig.routes.find((item) => item.id === routeId) ?? roleConfig.routes[0];
-  if (!route || !state.viewContainer) return;
-
-  state.viewContainer.innerHTML = '';
-  route.render(state.viewContainer, {
-    role,
-    routeId: route.id,
-    refresh: () => renderView(role, route.id),
-  });
-}
-
-function navigate(role, routeId) {
-  state.role = role;
-  state.routeId = routeId;
-  updateActiveLink();
-  renderView(role, routeId);
-}
-
-function buildRoleSelector(onChange) {
-  const wrapper = document.createElement('label');
-  wrapper.className = 'role-selector';
-  wrapper.textContent = 'Rol: ';
-
-  const select = document.createElement('select');
-  Object.entries(ROLE_CONFIG).forEach(([key, config]) => {
-    const option = document.createElement('option');
-    option.value = key;
-    option.textContent = config.title;
-    select.appendChild(option);
-  });
-  select.value = state.role;
-  select.addEventListener('change', (event) => {
-    const nextRole = event.target.value;
-    const nextConfig = ROLE_CONFIG[nextRole];
-    if (!nextConfig) return;
-    onChange(nextRole, nextConfig);
+  Object.entries(ROUTE_DEFINITIONS).forEach(([role, routes]) => {
+    registerRoutes(role, routes);
   });
 
-  wrapper.appendChild(select);
-  return { wrapper, select };
-}
-
-function renderLayout() {
   const appRoot = document.querySelector('#app');
   if (!appRoot) {
-    throw new Error('No se encontró el nodo raíz #app');
+    throw new Error('No se encontró el nodo raíz #app para montar la aplicación.');
   }
 
   appRoot.innerHTML = '';
@@ -140,59 +62,69 @@ function renderLayout() {
   const layout = document.createElement('div');
   layout.className = 'app';
 
-  const sidebarContainer = document.createElement('aside');
-  sidebarContainer.className = 'sidebar';
-
-  const content = document.createElement('main');
-  content.className = 'content';
-
   const header = document.createElement('header');
   header.className = 'content__header';
-  const title = document.createElement('h1');
-  title.textContent = 'Panel de referidos';
-  header.appendChild(title);
 
-  const { wrapper: roleSelector, select } = buildRoleSelector((nextRole) => {
-    const nextConfig = ROLE_CONFIG[nextRole];
-    if (!nextConfig) return;
-    state.role = nextRole;
-    state.routeId = nextConfig.routes[0]?.id ?? null;
-    const sidebar = buildSidebar(nextRole);
-    sidebarContainer.innerHTML = '';
-    sidebarContainer.appendChild(sidebar);
-    updateActiveLink();
-    renderView(state.role, state.routeId);
-  });
+  const heading = document.createElement('h1');
+  heading.textContent = 'Panel de referidos';
+  header.appendChild(heading);
 
-  header.appendChild(roleSelector);
+  const subtitle = document.createElement('p');
+  subtitle.className = 'content__subtitle';
+  header.appendChild(subtitle);
 
   const viewContainer = document.createElement('section');
   viewContainer.className = 'view-container';
 
+  const content = document.createElement('main');
+  content.id = 'content';
+  content.className = 'content';
   content.appendChild(header);
   content.appendChild(viewContainer);
 
-  layout.appendChild(sidebarContainer);
-  layout.appendChild(content);
+  setContentContainer(viewContainer);
 
+  const sidebar = createSidebar({
+    activeRole: DEFAULT_ROLE,
+    activeView: DEFAULT_VIEW,
+    getViewsForRole: getAvailableViews,
+    onRoleChange: (nextRole) => {
+      const availableViews = getAvailableViews(nextRole);
+      const defaultView = availableViews[0]?.id;
+      const nextRoute = navigate(nextRole, defaultView);
+      syncSidebar(nextRoute);
+      updateSubtitle(nextRoute);
+    },
+    onViewChange: (role, view) => {
+      const nextRoute = navigate(role, view);
+      syncSidebar(nextRoute);
+      updateSubtitle(nextRoute);
+    },
+    title: 'Roles',
+  });
+
+  const sidebarElement = sidebar.element;
+  sidebarElement.id = 'sidebar';
+  sidebarElement.classList.add('sidebar');
+
+  layout.appendChild(sidebarElement);
+  layout.appendChild(content);
   appRoot.appendChild(layout);
 
-  state.viewContainer = viewContainer;
+  const updateSubtitle = ({ role, view }) => {
+    const available = getAvailableViews(role);
+    const current = available.find((item) => item.id === view);
+    subtitle.textContent = current?.label ? `Vista: ${current.label}` : '';
+  };
 
-  function buildSidebar(role) {
-    const config = ROLE_CONFIG[role];
-    registerSidebarRole(role, config.routes.map((item) => ({ label: item.label, href: `#${item.id}` })));
-    const sidebar = createSidebar(role, { title: config.title });
-    decorateMenuLinks(sidebar, config);
-    return sidebar;
-  }
+  const syncSidebar = ({ role, view }) => {
+    sidebar.setActiveRole(role, { views: getAvailableViews(role) });
+    sidebar.setActiveView(view);
+  };
 
-  const initialSidebar = buildSidebar(state.role);
-  sidebarContainer.appendChild(initialSidebar);
-  select.value = state.role;
-  state.routeId = ROLE_CONFIG[state.role].routes[0].id;
-  updateActiveLink();
-  renderView(state.role, state.routeId);
-}
+  const initialRoute = navigate(DEFAULT_ROLE, DEFAULT_VIEW);
+  syncSidebar(initialRoute);
+  updateSubtitle(initialRoute);
+};
 
-renderLayout();
+boot();
