@@ -39,9 +39,12 @@ export function renderPartnerDashboard(container) {
   }
 
   const summary = summaryForPartner(partner.id, db);
+  const partnerInfo = summary?.partner ?? { id: partner.id };
 
   const intro = createCard(
-    `Hola ${partner.shortName ?? partner.name ?? partner.id}`,
+    `Hola ${
+      partnerInfo.shortName ?? partnerInfo.name ?? partnerInfo.id ?? partner.shortName ?? partner.name ?? partner.id
+    }`,
     'Resumen de usuarios directos y afiliados, además de los pagos acumulados.',
   );
   container.appendChild(intro);

@@ -25,22 +25,52 @@ const createCard = (title, description) => {
   return card;
 };
 
-const summarize = (invoices) => {
-  return invoices.reduce(
+const sanitiseInvoice = (invoice) => {
+  if (!invoice || typeof invoice !== 'object') {
+    return null;
+  }
+
+  const id = invoice.id ?? invoice.invoiceId ?? invoice.invoice_id ?? null;
+  if (id == null) {
+    return null;
+  }
+
+  const partnerIdRaw = invoice.partner_id ?? invoice.partnerId ?? invoice.partner ?? null;
+  const partnerId =
+    partnerIdRaw == null || partnerIdRaw === '' ? null : String(partnerIdRaw).trim() || null;
+  const amountNumber = Number(invoice.amount ?? 0);
+  const usersCountNumber = Number(
+    invoice.users_count ?? invoice.usersCount ?? invoice.userCount ?? 0,
+  );
+
+  return {
+    id,
+    partnerId,
+    partnerName: invoice.partner_name ?? null,
+    period: invoice.period ?? null,
+    amount: Number.isFinite(amountNumber) ? amountNumber : 0,
+    status: invoice.status ?? null,
+    usersCount: Number.isFinite(usersCountNumber) ? usersCountNumber : 0,
+    cutoffDate: invoice.cutoff_date ?? invoice.cutoffDate ?? null,
+    dueDate: invoice.due_date ?? invoice.dueDate ?? null,
+  };
+};
+
+const summarise = (invoices) =>
+  invoices.reduce(
     (acc, invoice) => {
-      const amount = Number(invoice.amount ?? 0);
       acc.count += 1;
-      acc.amount += amount;
-      if ((invoice.status ?? '').toLowerCase() === 'paid') {
-        acc.paid += amount;
+      acc.amount += invoice.amount;
+      const status = typeof invoice.status === 'string' ? invoice.status.toLowerCase() : '';
+      if (status === 'paid') {
+        acc.paid += invoice.amount;
       } else {
-        acc.pending += amount;
+        acc.pending += invoice.amount;
       }
       return acc;
     },
     { count: 0, amount: 0, paid: 0, pending: 0 },
   );
-};
 
 const renderSummary = (summary) => {
   const list = document.createElement('ul');
@@ -85,7 +115,7 @@ const renderTable = (invoices, onSelect) => {
         invoice.period ?? '—',
         currencyFormatter.format(invoice.amount ?? 0),
         invoice.status ?? '—',
-        invoice.users_count ?? 0,
+        invoice.usersCount ?? 0,
       ];
       cells.forEach((value) => {
         const td = document.createElement('td');
@@ -113,9 +143,9 @@ const renderDetail = (invoice) => {
     <li><span>Período</span><strong>${invoice.period ?? '—'}</strong></li>
     <li><span>Monto</span><strong>${currencyFormatter.format(invoice.amount ?? 0)}</strong></li>
     <li><span>Estado</span><strong>${invoice.status ?? '—'}</strong></li>
-    <li><span>Usuarios</span><strong>${invoice.users_count ?? 0}</strong></li>
-    <li><span>Cut-off</span><strong>${invoice.cutoff_date ?? '—'}</strong></li>
-    <li><span>Vencimiento</span><strong>${invoice.due_date ?? '—'}</strong></li>
+    <li><span>Usuarios</span><strong>${invoice.usersCount ?? 0}</strong></li>
+    <li><span>Cut-off</span><strong>${invoice.cutoffDate ?? '—'}</strong></li>
+    <li><span>Vencimiento</span><strong>${invoice.dueDate ?? '—'}</strong></li>
   `;
   card.appendChild(list);
   return card;
@@ -131,7 +161,9 @@ export function renderPartnerPayments(container, { refresh }) {
     return;
   }
 
-  const invoices = listInvoices({ partnerId: partner.id }, db);
+  const invoices = listInvoices({ partnerId: partner.id }, db)
+    .map(sanitiseInvoice)
+    .filter(Boolean);
   if (!selectedInvoiceId || !invoices.find((invoice) => invoice.id === selectedInvoiceId)) {
     selectedInvoiceId = invoices[0]?.id ?? null;
   }
@@ -144,7 +176,7 @@ export function renderPartnerPayments(container, { refresh }) {
   );
 
   const summaryCard = createCard('Resumen');
-  summaryCard.appendChild(renderSummary(summarize(invoices)));
+  summaryCard.appendChild(renderSummary(summarise(invoices)));
   container.appendChild(summaryCard);
 
   const tableCard = createCard('Facturas del partner');
